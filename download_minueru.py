@@ -106,7 +106,7 @@ def url_to_zip(
     if not pdf_path or not os.path.isfile(pdf_path):
         raise FileNotFoundError(f"未找到导出的 PDF 文件: {pdf_path}")
     base_name = os.path.splitext(os.path.basename(pdf_path))[0]
-    root_dir = os.path.dirname(__file__)
+    root_dir = os.path.dirname(pdf_path)
     save_dir = os.path.join(root_dir, base_name)
     # 若该 URL 对应的输出目录已存在，直接跳过
     if os.path.isdir(save_dir):
@@ -215,7 +215,7 @@ def _parse_args(argv):
     # parser.add_argument("--url", required=True, help="Confluence 页面完整 URL")
     parser.add_argument("--processor", default="mineru", help="处理器名称")
     parser.add_argument("--server", default="http://10.58.11.60:7890/process/zip", help="处理服务 URL")
-    parser.add_argument("--pdf", default=None, help="可选：PDF 输出路径")
+    parser.add_argument("--pdf", default="/home/amlogic/RAG/debug_doc", help="可选：PDF 输出路径")
     parser.add_argument("--out", default="output.zip", help="可选：ZIP 输出路径")
     parser.add_argument("--timeout", type=int, default=6000, help="请求超时时间(秒)")
     parser.add_argument(
@@ -229,44 +229,50 @@ def _parse_args(argv):
 
 def main(argv=None) -> int:
     args = _parse_args(argv or sys.argv[1:])
-    urls = [
-        "/home/amlogic/RAG/debug_doc/WiFi基本介绍及常见调试方法.pdf",
-    ]
+    # urls = [
+    #     "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088204",
+    #     # "/home/amlogic/RAG/debug_doc/WiFi基本介绍及常见调试方法.pdf",
+    # ]
     # urls = [
     # "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config",
     # "https://confluence.amlogic.com/pages/viewpage.action?pageId=364792684#AudioHaldump/debugintroduction-a.ms12versionpipeline",
     # "https://confluence.amlogic.com/pages/viewpage.action?pageId=165291970",
     # "https://confluence.amlogic.com/pages/viewpage.action?pageId=100811852"
     # ]
-    # urls = [
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088161",
-    # "https://confluence.amlogic.com/display/SW/How+to+debug+in+multi_instance+mode",
-    # "https://confluence.amlogic.com/display/SW/How+to+do+video+decoder+performace+test",
-    # "https://confluence.amlogic.com/display/SW/How+to+do+decoded+YUV+crc+verification",
-    # "https://confluence.amlogic.com/display/SW/DDR+access+urgent+seting+for+decoder+or+GPU",
-    # "https://confluence.amlogic.com/display/SW/How+to+dump+decoded+YUV+data",
-    # "https://confluence.amlogic.com/display/SW/HDR+data+Process+in+video+decoder",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088204",
-    # "https://confluence.amlogic.com/display/SW/Force+DI+in+decoder+driver",
-    # "https://confluence.amlogic.com/display/SW/Multi-instance+decoder+information++tutorial",
-    # "https://confluence.amlogic.com/display/SW/Performance+test+method+in+AFBC+and+non-AFBC+mode",
-    # "https://confluence.amlogic.com/display/SW/Video+decoder+ucode+introduction",
-    # "https://confluence.amlogic.com/display/SW/MACRO+defines+in+h264+single+ucode",
-    # "https://confluence.amlogic.com/display/SW/Qucik+guidence+for+decoder+crash+issue",
-    # "https://confluence.amlogic.com/display/SW/Memory+pollution+issue+debug+with+DMC",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088229",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088232",
-    # "https://confluence.amlogic.com/display/SW/Simple+tools+for+decoder+debug",
-    # "https://confluence.amlogic.com/display/SW/Stream+buf+data+dump",
-    # "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config",
-    # "https://confluence.amlogic.com/display/SW/Error+handle+policy",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=160995650",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088232",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=180740926",
-    # "https://confluence.amlogic.com/display/SW/Decoder+data+dump+for+5.15",
-    # ]
+    urls = [
+    "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=364792684#AudioHaldump/debugintroduction-a.ms12versionpipeline",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=165291970",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=100811852"
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088161",
+    "https://confluence.amlogic.com/display/SW/How+to+debug+in+multi_instance+mode",
+    "https://confluence.amlogic.com/display/SW/How+to+do+video+decoder+performace+test",
+    "https://confluence.amlogic.com/display/SW/How+to+do+decoded+YUV+crc+verification",
+    "https://confluence.amlogic.com/display/SW/DDR+access+urgent+seting+for+decoder+or+GPU",
+    "https://confluence.amlogic.com/display/SW/How+to+dump+decoded+YUV+data",
+    "https://confluence.amlogic.com/display/SW/HDR+data+Process+in+video+decoder",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088204",
+    "https://confluence.amlogic.com/display/SW/Force+DI+in+decoder+driver",
+    "https://confluence.amlogic.com/display/SW/Multi-instance+decoder+information++tutorial",
+    "https://confluence.amlogic.com/display/SW/Performance+test+method+in+AFBC+and+non-AFBC+mode",
+    "https://confluence.amlogic.com/display/SW/Video+decoder+ucode+introduction",
+    "https://confluence.amlogic.com/display/SW/MACRO+defines+in+h264+single+ucode",
+    "https://confluence.amlogic.com/display/SW/Qucik+guidence+for+decoder+crash+issue",
+    "https://confluence.amlogic.com/display/SW/Memory+pollution+issue+debug+with+DMC",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088229",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088232",
+    "https://confluence.amlogic.com/display/SW/Simple+tools+for+decoder+debug",
+    "https://confluence.amlogic.com/display/SW/Stream+buf+data+dump",
+    "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config",
+    "https://confluence.amlogic.com/display/SW/Error+handle+policy",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=160995650",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088232",
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=180740926",
+    "https://confluence.amlogic.com/display/SW/Decoder+data+dump+for+5.15",
+    ]
     import time
     error_urls = []
+    succ_pdfs = []
     for url in urls:
         time.sleep(3)
         try:
@@ -309,13 +315,24 @@ def main(argv=None) -> int:
             print(f"图片链接重写失败: {e}", file=sys.stderr)
             error_urls.append(url)
             continue
-        # 发送 MD 路径到 webhook（如提供），并同步打印返回内容
-        # new_md_path = "/home/amlogic/RAG/debug_doc/WiFi基本介绍及常见调试方法/extracted/WiFi基本介绍及常见调试方法/vlm/WiFi基本介绍及常见调试方法_with_img.md"
-        # new_md_path = "/home/amlogic/RAG/debug_doc/Video_decoder_debug_print_config/extracted/Video_decoder_debug_print_config/vlm/Video_decoder_debug_print_config.md"
-        # new_md_path = "/home/amlogic/RAG/debug_doc/Decoder_data_dump_for_5.15/extracted/Decoder_data_dump_for_5.15/vlm/Decoder_data_dump_for_5.15.md"
-        webhook_resp = send_md_path_to_webhook(new_md_path, args.webhook, timeout=args.timeout)
-        if webhook_resp is not None:
-            print(f"Webhook 返回内容: {webhook_resp}")
+
+        succ_pdfs.append(new_md_path)
+
+    local_file_dir = os.path.dirname(__file__)
+    succ_pdfs_save_dir = os.path.join(local_file_dir, "succ_pdfs.txt")
+    with open(succ_pdfs_save_dir, "w") as f:
+        for pdf in succ_pdfs:
+            f.write(pdf + "\n")
+    # 发送 MD 路径到 webhook（如提供），并同步打印返回内容
+    # new_md_path = "/home/amlogic/RAG/debug_doc/WiFi基本介绍及常见调试方法/extracted/WiFi基本介绍及常见调试方法/vlm/WiFi基本介绍及常见调试方法_with_img.md"
+    # new_md_path = "/home/amlogic/RAG/debug_doc/Video_decoder_debug_print_config/extracted/Video_decoder_debug_print_config/vlm/Video_decoder_debug_print_config.md"
+    # new_md_path = "/home/amlogic/RAG/debug_doc/Decoder_data_dump_for_5.15/extracted/Decoder_data_dump_for_5.15/vlm/Decoder_data_dump_for_5.15.md"
+    with open(succ_pdfs_save_dir, "r") as f:
+        for line in f:
+            line = line.strip()
+            webhook_resp = send_md_path_to_webhook(line, args.webhook, timeout=args.timeout)
+            if webhook_resp is not None:
+                print(f"Webhook 返回内容: {webhook_resp}")
     
     print(f"处理完成，共处理 {len(urls)} 个 URL，{len(error_urls)} 个 URL 处理失败")
     if error_urls:

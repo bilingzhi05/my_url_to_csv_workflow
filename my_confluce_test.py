@@ -126,7 +126,8 @@ def _safe_filename(name: str) -> str:
     """将标题转为安全的文件名。"""
     # 替换可能导致文件名不合法的字符
     return (
-        name.replace('/', '_')
+        name.strip()
+            .replace('/', '_')
             .replace('\\', '_')
             .replace(':', '_')
             .replace('*', '_')
@@ -255,9 +256,18 @@ def export_confluence_page_to_pdf_by_url(page_url: str, out_file: str | None = N
     page_id = page_json.get('id')
     title = page_json.get('title', f"confluence_page_{page_id}")
     default_name = _safe_filename(title) + '.pdf'
-    # 若 out_file 为空字符串或仅空白，使用默认名
-    effective_out = out_file if out_file and str(out_file).strip() else default_name
-    return export_confluence_page_to_pdf(page_id, effective_out)
+    target = default_name
+    if out_file and str(out_file).strip():
+        p = out_file
+        if os.path.isdir(p) or p.endswith(os.sep):
+            os.makedirs(p, exist_ok=True)
+            target = os.path.join(p, default_name)
+        else:
+            d = os.path.dirname(p)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            target = p
+    return export_confluence_page_to_pdf(page_id, target)
 
 if __name__ == "__main__":
     # 示例：通过 URL 获取页面内容
@@ -278,9 +288,11 @@ if __name__ == "__main__":
 
     # 示例：导出为 PDF
     # page_url = "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config"
-    page_url = "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088161"
+    # page_url = "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088161"
+    page_url = "https://confluence.amlogic.com/pages/viewpage.action?pageId=180740926"
     try:
-        pdf_path = export_confluence_page_to_pdf_by_url(page_url)
+        output_dir = "/home/amlogic/RAG/debug_doc"
+        pdf_path = export_confluence_page_to_pdf_by_url(page_url, output_dir)
         print("导出为 PDF 成功，文件路径:", pdf_path)
     except Exception as e:
         print("导出为 PDF 失败:", e)
