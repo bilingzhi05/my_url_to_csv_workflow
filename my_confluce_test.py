@@ -22,7 +22,7 @@ def get_confluence_page_by_url(page_url):
     """
     parsed = urlparse(page_url)
     qs = parse_qs(parsed.query)
-    print(f"qs: {qs}")
+    # print(f"qs: {qs}")
     # 1) 优先支持 pageId 形式的链接
     if "pageId" in qs and qs["pageId"]:
         page_id = qs["pageId"][0]
@@ -251,7 +251,7 @@ def export_confluence_page_to_pdf_by_url(page_url: str, out_file: str | None = N
     :return: 保存的文件路径
     """
     page_json = get_confluence_page_by_url(page_url)
-    print(f"page_json:{page_json}")
+    # print(f"page_json:{page_json}")
     page_id = page_json.get('id')
     title = page_json.get('title', f"confluence_page_{page_id}")
     default_name = _safe_filename(title) + '.pdf'
@@ -277,8 +277,8 @@ if __name__ == "__main__":
     #     print("导出为 Word 失败:", e)
 
     # 示例：导出为 PDF
-    page_url = "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config"
-  
+    # page_url = "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config"
+    page_url = "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088161"
     try:
         pdf_path = export_confluence_page_to_pdf_by_url(page_url)
         print("导出为 PDF 成功，文件路径:", pdf_path)
