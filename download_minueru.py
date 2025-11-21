@@ -13,45 +13,11 @@ except ImportError:
 # 依赖本地模块
 from my_confluce_test import export_confluence_page_to_pdf_by_url, _safe_filename
 from process_client import process_document
+from send_to_n8n_webhook import send_md_path_to_webhook
 
 class SkipProcessing(Exception):
     """输出目录已存在，跳过本轮处理。"""
     pass
-
-
-def _post_md_path(md_abs_path: str, webhook_url: str, timeout: int = 10):
-    """将 MD 文件的绝对路径发送到指定 webhook，并返回响应对象。"""
-    payload = {"path": md_abs_path}
-    headers = {"Content-Type": "application/json"}
-    print(f"发送 webhook 请求，等待响应… URL: {webhook_url}")
-    resp = requests.post(webhook_url, json=payload, headers=headers, timeout=timeout)
-    print(f"Webhook 响应状态: {resp.status_code}")
-    try:
-        resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
-        # 打印部分响应体，便于定位错误
-        body_preview = resp.text[:200] if hasattr(resp, 'text') else '<no text>'
-        print(f"Webhook 返回错误: {e}; 响应体预览: {body_preview}", file=sys.stderr)
-        raise
-    return resp
-
-
-def send_md_path_to_webhook(md_path: str, webhook_url: Optional[str], timeout: int = 10) -> bool:
-    """发送 MD 文件绝对路径到 webhook。
-
-    返回 True 表示发送成功；未提供 webhook 或发送失败返回 False。
-    """
-    if not webhook_url:
-        return False
-    md_abs_path = os.path.abspath(md_path)
-    try:
-        resp = _post_md_path(md_abs_path, webhook_url, timeout=timeout)
-        print(f"已发送 MD 绝对路径到 webhook: {webhook_url}\n路径: {md_abs_path}\n状态码: {resp.status_code}")
-        return True
-    except Exception as e:
-        print(f"发送 webhook 失败: {e}", file=sys.stderr)
-        return False
-
 
 def url_to_zip(
     page_url: str,
@@ -229,21 +195,19 @@ def _parse_args(argv):
 
 def main(argv=None) -> int:
     args = _parse_args(argv or sys.argv[1:])
-    # urls = [
-    #     "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088204",
-    #     # "/home/amlogic/RAG/debug_doc/WiFi基本介绍及常见调试方法.pdf",
-    # ]
-    # urls = [
-    # "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=364792684#AudioHaldump/debugintroduction-a.ms12versionpipeline",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=165291970",
-    # "https://confluence.amlogic.com/pages/viewpage.action?pageId=100811852"
-    # ]
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    os.makedirs(timestamp, exist_ok=True)
+    local_file_dir = os.path.dirname(__file__)
+    import time
+    error_urls = []
+    minueru_succ_pdfs = []
+
+    # 需要自动化,不校验md文档，放开以下代码
     urls = [
-    "https://confluence.amlogic.com/display/SW/Video+decoder+debug+print+config",
     "https://confluence.amlogic.com/pages/viewpage.action?pageId=364792684#AudioHaldump/debugintroduction-a.ms12versionpipeline",
     "https://confluence.amlogic.com/pages/viewpage.action?pageId=165291970",
-    "https://confluence.amlogic.com/pages/viewpage.action?pageId=100811852"
+    "https://confluence.amlogic.com/pages/viewpage.action?pageId=100811852",
     "https://confluence.amlogic.com/pages/viewpage.action?pageId=18088161",
     "https://confluence.amlogic.com/display/SW/How+to+debug+in+multi_instance+mode",
     "https://confluence.amlogic.com/display/SW/How+to+do+video+decoder+performace+test",
@@ -270,11 +234,12 @@ def main(argv=None) -> int:
     "https://confluence.amlogic.com/pages/viewpage.action?pageId=180740926",
     "https://confluence.amlogic.com/display/SW/Decoder+data+dump+for+5.15",
     ]
-    import time
-    error_urls = []
-    succ_pdfs = []
-    for url in urls:
+
+    for i, url in enumerate(urls):
+        print(f"准备处理第 {i+1}/{len(urls)} URL: {url},随时可以断开")
         time.sleep(3)
+        print(f"正在处理中,请勿断开")
+        time.sleep(1)
         try:
             zip_output_path = url_to_zip(
                 # page_url=args.url,
@@ -302,41 +267,55 @@ def main(argv=None) -> int:
             print(f"解压或查找 MD 失败: {e}", file=sys.stderr)
             error_urls.append(url)
             continue
-        # md_path = "/home/amlogic/RAG/debug_doc/AudioHal dump_debug introduction/extracted/AudioHal dump_debug introduction/vlm/AudioHal dump_debug introduction.md"
-        # 重写 MD 中的相对图片链接为绝对 HTTP 链接
-        try:
-            rewritten, new_md_path = rewrite_md_images_to_http(
-                md_path,
-                base_host="http://10.18.11.98:8081",
-                workspace_root="/home/amlogic",
-            )
-            print(f"图片链接重写完成，共修改 {rewritten} 处")
-        except Exception as e:
-            print(f"图片链接重写失败: {e}", file=sys.stderr)
-            error_urls.append(url)
-            continue
-
-        succ_pdfs.append(new_md_path)
-
-    local_file_dir = os.path.dirname(__file__)
-    succ_pdfs_save_dir = os.path.join(local_file_dir, "succ_pdfs.txt")
-    with open(succ_pdfs_save_dir, "w") as f:
-        for pdf in succ_pdfs:
+        minueru_succ_pdfs.append(md_path)
+    
+    保存从mineru 解析成功的md文档
+    succ_pdfs_path = os.path.join(local_file_dir, timestamp, f"succ_from_mineru_pdfs_{timestamp}.txt")
+    with open(succ_pdfs_path, "w") as f:
+        for pdf in minueru_succ_pdfs:
             f.write(pdf + "\n")
-    # 发送 MD 路径到 webhook（如提供），并同步打印返回内容
-    # new_md_path = "/home/amlogic/RAG/debug_doc/WiFi基本介绍及常见调试方法/extracted/WiFi基本介绍及常见调试方法/vlm/WiFi基本介绍及常见调试方法_with_img.md"
-    # new_md_path = "/home/amlogic/RAG/debug_doc/Video_decoder_debug_print_config/extracted/Video_decoder_debug_print_config/vlm/Video_decoder_debug_print_config.md"
-    # new_md_path = "/home/amlogic/RAG/debug_doc/Decoder_data_dump_for_5.15/extracted/Decoder_data_dump_for_5.15/vlm/Decoder_data_dump_for_5.15.md"
-    with open(succ_pdfs_save_dir, "r") as f:
-        for line in f:
-            line = line.strip()
-            webhook_resp = send_md_path_to_webhook(line, args.webhook, timeout=args.timeout)
+    # 到这里结束
+
+  
+    # 需要自动化,不校验md文档，放开以下代码
+    new_md_paths = []
+    succ_pdfs_path = "/home/amlogic/RAG/debug_doc/my_url_to_csv/my_url_to_csv_workflow/20251120_151847/succ_from_mineru_pdfs_20251120_151847.txt"
+    with open(succ_pdfs_path, "r") as f:
+        for md_path in f:
+            md_path = md_path.strip()
+            new_md_path = ''
+
+            # 重写 MD 中的相对图片链接为绝对 HTTP 链接
+            try:
+                rewritten, new_md_path = rewrite_md_images_to_http(
+                    md_path,
+                    base_host="http://10.18.11.98:8081",
+                    workspace_root="/home/amlogic",
+                )
+                print(f"图片链接重写完成，共修改 {rewritten} 处")
+            except Exception as e:
+                print(f"图片链接重写失败: {e}", file=sys.stderr)
+                error_urls.append(url)
+                continue
+            # 保存从改写成功的md文档,可以用来给webhook单独调试
+            new_md_paths.append(new_md_path)
+            webhook_resp = send_md_path_to_webhook(new_md_path, args.webhook, timeout=args.timeout)
             if webhook_resp is not None:
                 print(f"Webhook 返回内容: {webhook_resp}")
-    
-    print(f"处理完成，共处理 {len(urls)} 个 URL，{len(error_urls)} 个 URL 处理失败")
+
+    succ_to_webhook_path = os.path.join(local_file_dir, timestamp, f"succ_check_img_pdfs_{timestamp}.txt")
+    with open(succ_to_webhook_path, "w") as f:
+        for pdf in new_md_paths:
+            f.write(pdf + "\n")
+
     if error_urls:
-        print(f"失败 URL 列表: {error_urls}")
+        print("失败 URL 列表:\n" + "\n".join(error_urls))
+    error_urls_path = os.path.join(local_file_dir, timestamp, f"error_urls_{timestamp}.txt")
+    with open(error_urls_path, "w") as f:
+        for pdf in error_urls:
+            f.write(pdf + "\n")
+    # 到这里结束
+    print(f"处理完成，共处理 {len(urls)} 个 URL，{len(error_urls)} 个 URL 处理失败")
     
     return 0
 
