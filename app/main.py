@@ -8,8 +8,25 @@ import subprocess
 import pathlib
 import glob
 import zipfile
+import logging
+from datetime import datetime
 
 app = FastAPI(title="FastAPI 文件处理服务", version="0.1.0")
+
+# 模块顶部
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s %(name)s: %(message)s',
+    filename='/home/nan.li/work/fastapi_zip_service/app/fastapi_log.log',
+    filemode='a',
+)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s - %(message)s"))
+    logger.addHandler(_handler)
 
 
 def _ensure_dir(path: str) -> None:
@@ -41,7 +58,9 @@ RUN_PREFIX = "fastapi_zip_service_"
 
 def _make_tmp_root() -> str:
     _ensure_dir(PROJECT_ROOT)
-    return tempfile.mkdtemp(prefix=RUN_PREFIX, dir=PROJECT_ROOT)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    prefix = f"{RUN_PREFIX}{ts}_"
+    return tempfile.mkdtemp(prefix=prefix, dir=PROJECT_ROOT)
 
 
 def _zip_directory(src_dir: str, zip_out_path: str) -> str:
@@ -76,8 +95,8 @@ async def process_file(
     out_dir = os.path.join(tmp_root, "output")
     _ensure_dir(in_dir)
     _ensure_dir(out_dir)
-    print(f"in_dir: {in_dir}")
-    print(f"out_dir: {out_dir}")
+    logger.info(f"in_dir: {in_dir}")
+    logger.info(f"out_dir: {out_dir}")
 
     # 保存上传文件
     in_path = os.path.join(in_dir, pathlib.Path(file.filename).name)
@@ -164,30 +183,40 @@ async def process_zip(
         raise HTTPException(status_code=400, detail="/process/zip 仅支持 processor=mineru")
     if not file or not file.filename:
         raise HTTPException(status_code=400, detail="未提供文件或文件名为空")
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="仅支持 PDF 文件")
 
     tmp_root = _make_tmp_root()
     in_dir = os.path.join(tmp_root, "input")
     out_dir = os.path.join(tmp_root, "output")
     _ensure_dir(in_dir)
     _ensure_dir(out_dir)
-
+    logger.info(f"in_dir: {in_dir}")
+    logger.info(f"out_dir: {out_dir}")
     in_path = os.path.join(in_dir, pathlib.Path(file.filename).name)
     _save_upload(file, in_path)
 
     base = pathlib.Path(in_path).stem
 
     # 调用 mineru 生成输出目录
+    in_lower = in_path.lower()
+    if in_lower.endswith(".pdf"):
+        mineru_input = in_path
+    elif in_lower.endswith(".docx") or in_lower.endswith(".doc"):
+        mineru_input = _convert_to_pdf(in_path, out_dir)
+        logger.info(f"doc/docx 转 PDF 完成: {mineru_input}")
+    else:
+        raise HTTPException(status_code=400, detail="仅支持 PDF 或 doc/docx（将自动转为 PDF）")
+
     mineru_cmd = [
         "mineru",
         "-p",
-        in_path,
+        mineru_input,
         "-o",
         out_dir,
         "-b",
         mineru_backend,
     ]
+    logger.info(f"mineru 命令: {' '.join(mineru_cmd)}")
+    print(f"print mineru 命令: {' '.join(mineru_cmd)}")
     proc = subprocess.run(mineru_cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         err_msg = (proc.stderr or proc.stdout or "未知错误").strip()
@@ -236,3 +265,22 @@ async def health():
 @app.get("/")
 async def root():
     return JSONResponse({"message": "FastAPI 文件处理服务运行中", "docs": "/docs"})
+
+
+def _convert_to_pdf(src_path: str, out_dir: str) -> str:
+    """使用 LibreOffice 将 doc/docx 转换为 pdf，返回生成的 pdf 路径。"""
+    _ensure_dir(out_dir)
+    base = pathlib.Path(src_path).stem
+    pdf_path = os.path.join(out_dir, f"{base}.pdf")
+    cmd = [
+        "libreoffice", "--headless",
+        "--convert-to", "pdf",
+        "--outdir", out_dir,
+        src_path,
+    ]
+    logger.info(f"convert cmd: {' '.join(cmd)}")
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0 or not os.path.exists(pdf_path):
+        err_msg = (proc.stderr or proc.stdout or "未知错误").strip()
+        raise HTTPException(status_code=500, detail=f"文档转 PDF 失败: {err_msg}")
+    return pdf_path
