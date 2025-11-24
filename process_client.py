@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import Optional
+import time
 
 try:
     import requests
@@ -16,6 +17,7 @@ def process_document(
     output_path: Optional[str] = "output.zip",
     timeout: int = 120,
 ) -> str:
+    start_time = time.time()
     if not os.path.isfile(file_path):
         raise FileNotFoundError(f"文件不存在: {file_path}")
 
@@ -42,7 +44,9 @@ def process_document(
     # 写入二进制 ZIP 内容
     with open(target_path, "wb") as out:
         out.write(resp.content)
-
+    
+    end_time = time.time()
+    print(f"minueru 处理完成，耗时: {end_time - start_time} 秒")
     return target_path
 
 
@@ -50,7 +54,7 @@ def _parse_args(argv):
     import argparse
 
     parser = argparse.ArgumentParser(description="上传文件到处理服务并保存 ZIP 输出")
-    parser.add_argument("--file", required=True, help="待处理文件路径")
+    parser.add_argument("--file", default="/home/amlogic/RAG/debug_doc/SDK使用指南_Android_S_.docx", required=False, help="待处理文件路径")
     parser.add_argument("--processor", default="mineru", help="处理器名称")
     parser.add_argument(
         "--server",
@@ -58,7 +62,7 @@ def _parse_args(argv):
         help="处理服务URL",
     )
     parser.add_argument("--out", default="output.zip", help="输出 ZIP 文件路径")
-    parser.add_argument("--timeout", type=int, default=120, help="请求超时时间(秒)")
+    parser.add_argument("--timeout", type=int, default=6000, help="请求超时时间(秒)")
     return parser.parse_args(argv)
 
 

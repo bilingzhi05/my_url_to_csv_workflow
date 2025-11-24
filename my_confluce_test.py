@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from requests.auth import HTTPBasicAuth
 from urllib.parse import urlparse, parse_qs, unquote
@@ -125,8 +126,9 @@ def get_confluence_space_pages(space_key, limit=25):
 def _safe_filename(name: str) -> str:
     """将标题转为安全的文件名。"""
     # 替换可能导致文件名不合法的字符
-    return (
-        name.strip()
+    cleaned = re.sub(r"\s+", "_", name.strip())
+    cleaned = (
+        cleaned
             .replace('/', '_')
             .replace('\\', '_')
             .replace(':', '_')
@@ -136,8 +138,10 @@ def _safe_filename(name: str) -> str:
             .replace('<', '_')
             .replace('>', '_')
             .replace('|', '_')
-            .replace(' ', '_')
+            .replace('(', '_')
+            .replace(')', '_')
     )
+    return cleaned
 
 def export_confluence_page_to_word(page_id: str, out_file: str | None = None) -> str:
     """
