@@ -3,7 +3,8 @@ import sys
 import zipfile
 import re
 from typing import Optional
-
+import pathlib
+import subprocess
 try:
     import requests
 except ImportError:
@@ -14,6 +15,26 @@ except ImportError:
 from my_confluce_test import export_confluence_page_to_pdf_by_url, _safe_filename
 from process_client import process_document
 
+def _ensure_dir(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
+
+def _convert_to_pdf(src_path: str, out_dir: str) -> str:
+    """使用 LibreOffice 将 doc/docx 转换为 pdf，返回生成的 pdf 路径。"""
+    _ensure_dir(out_dir)
+    base = pathlib.Path(src_path).stem
+    pdf_path = os.path.join(out_dir, f"{base}.pdf")
+    cmd = [
+        "libreoffice", "--headless",
+        "--convert-to", "pdf",
+        "--outdir", out_dir,
+        src_path,
+    ]
+    print(f"convert cmd: {' '.join(cmd)}")
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0 or not os.path.exists(pdf_path):
+        err_msg = (proc.stderr or proc.stdout or "未知错误").strip()
+        raise Exception(f"文档转 PDF 失败: {err_msg}")
+    return pdf_path
 
 class SkipProcessing(Exception):
     """输出目录已存在，跳过本轮处理。"""
@@ -72,6 +93,11 @@ def url_to_zip(
 
     if not pdf_path or not os.path.isfile(pdf_path):
         raise FileNotFoundError(f"未找到导出的 PDF 文件: {pdf_path}")
+    if not pdf_path.endswith(".pdf"):
+        tmp_path = _convert_to_pdf(pdf_path, os.path.dirname(pdf_path))
+        print(f"文件转换{pdf_path} --> {tmp_path}")
+        pdf_path = tmp_path
+
     base_name = os.path.splitext(os.path.basename(pdf_path))[0]
     root_dir = os.path.dirname(pdf_path)
     save_dir = os.path.join(root_dir, base_name)
@@ -123,6 +149,7 @@ def extract_zip_and_find_md(zip_path: str, extract_dir: Optional[str] = None) ->
 def save_with_sanitized_name(local_path: str) -> str:
     abs_path = os.path.abspath(local_path)
     if not os.path.isfile(abs_path):
+        print(f"文件不存在: {abs_path}")
         raise FileNotFoundError(abs_path)
     dir_name = os.path.dirname(abs_path) # 包含文件名的目录路径
     filename = os.path.basename(abs_path) # 包含扩展名的文件名
